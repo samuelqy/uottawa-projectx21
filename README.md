@@ -2,7 +2,7 @@
 Supervisor: Paula Branco
 
 Participants (sort by lastname):
-- Flip Bosnjak
+- Filip Bosnjak
 - Jiaxun Gao
 - Xiang Li
 - Ahmad El Masri
