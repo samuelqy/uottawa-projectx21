@@ -8,3 +8,6 @@ Participants (sort by lastname):
 - Ahmad El Masri
 - Greg Price
 - Yue Qiu
+
+# Reference Section (Useful for reading)
+* [Cooperative Multimodal Approach to Depression Detection in Twitter](http://www.qizhang.info/paper/aaai2019.multimodal.pdf)
