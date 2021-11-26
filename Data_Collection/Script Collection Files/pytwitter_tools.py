@@ -58,9 +58,12 @@ def get_friends_list(api, user):
     Takes an object of class User as input
     Returns a list of the users friends ids as strings
     '''
-
-    anchor_friends_raw = api.get_friends(user_id=user.get_UserID(), count=200)
     anchor_friends_ids = []
+    try:
+      anchor_friends_raw = api.get_friends(user_id=user.get_UserID(), count=200)
+    except Exception as e:
+      print(e)
+      return anchor_friends_ids
 
     for i in anchor_friends_raw:
         anchor_friends_ids.append(i._json['id'])
