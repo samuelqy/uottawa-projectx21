@@ -24,7 +24,7 @@ To use the model:
 
 To use the model in projectX:
 
-1.Dataset pareperation: we need a dataset folder named "projectx", which contains the sub-floder "test". In the "test" folder, folders of each users is named with their username. Within each user folder, we need all their images(.jpg) and timeline(.txt) of tweets. Format refered to the readme.md in new_ds.
+1.Dataset pareperation: we need a dataset folder named "projectx", which contains the sub-floders "positive" and "negative". In the these two sub-folders, folders of each users is named with their username. Within each user folder, we need all their images(.jpg) and timeline(.txt) of tweets. Format refered to the readme.md in new_ds.
 
 2.Build the .pkl for our collected user. Just run 
 	

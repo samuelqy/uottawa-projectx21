@@ -193,7 +193,7 @@ class UserDataset(Dataset):
 
         elif root == 'projectx' :
 
-            categories = ['test']
+            categories = ['positive', 'negative']
 
         else:
             categories = ['positive', 'negative']
