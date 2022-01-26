@@ -38,6 +38,26 @@ def evaluate_rl():
     pre_dev_loader = DataLoader(ds.dev_ds, batch_size=1, collate_fn=collate)
     train_loader = DataLoader(ds.train_ds, batch_size=500, collate_fn=collate, shuffle=True)
     dev_loader = DataLoader(ds.dev_ds, batch_size=1, collate_fn=collate)
+
+
+    test = []
+    train = []
+
+    for user in ds.train_ds:
+        train.append(user[2])
+    for user in ds.dev_ds:
+        test.append(user[2])
+
+    file = open("test_users.txt", "w")
+    for user in test:
+        file.write(user + "\n")
+    file.close()
+
+    file2 = open("train_users.txt", "w")
+    for user in train:
+        file2.write(user + "\n")
+    file2.close()
+
     print(len(ds.train_ds), len(ds.dev_ds))
     if os.path.exists('models/baseModelGRU.pt'):
         model = torch.load('models/baseModelGRU.pt')

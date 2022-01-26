@@ -14,10 +14,12 @@ from multiprocessing import Pool
 from string import punctuation
 import pickle
 import shutil
-
+from PIL import UnidentifiedImageError
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 import torch.cuda
 import json
+from torch import optim, nn
+from torchvision import models, transforms
 
 use_cuda = torch.cuda.is_available()
 
@@ -29,6 +31,7 @@ english_stopwords = stopwords.words('english')
 stemmer = LancasterStemmer()
 tokenizer = TweetTokenizer(strip_handles=True, reduce_len=True)
 translate_table = dict((ord(char), None) for char in punctuation)
+
 
 def isEmoji(content):
     if not content:
@@ -44,6 +47,29 @@ def isEmoji(content):
     else:
         return False
 
+
+class FeatureExtractor(nn.Module):
+  def __init__(self, model):
+    super(FeatureExtractor, self).__init__()
+		# Extract VGG-16 Feature Layers
+    self.features = list(model.features)
+    self.features = nn.Sequential(*self.features)
+		# Extract VGG-16 Average Pooling Layer
+    self.pooling = model.avgpool
+		# Convert the image into one-dimensional vector
+    self.flatten = nn.Flatten()
+		# Extract the first part of fully-connected layer from VGG16
+    self.fc = model.classifier[0]
+  
+  def forward(self, x):
+		# It will take the input 'x' until it returns the feature vector called 'out'
+    out = self.features(x)
+    out = self.pooling(out)
+    out = self.flatten(out)
+    #out = self.fc(out) 
+    return out 
+
+
 class ImageDataset(Dataset):
     def __init__(self, root, need_split=False, train_ratio=None):
         self.transform = transforms.Compose([
@@ -52,7 +78,7 @@ class ImageDataset(Dataset):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
         # 此处需修改PyTorch内置的vgg代码，返回的是全连接层的上一层输出的特征
-        self.vgg = vgg16(pretrained=True)
+        self.vgg = FeatureExtractor(vgg16(pretrained=True))
         self.vgg.to(device)
         self.vgg.eval()
         self.ds = []
@@ -82,13 +108,20 @@ class ImageDataset(Dataset):
 
     def train_test_split(self, train_ratio):
         size = len(self.ds)
-        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)])
+        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)],generator=torch.Generator().manual_seed(42))
 
     def imageHandler(self, image_path: str) -> Image:
         if os.path.getsize(image_path) == 0:
             os.remove(image_path)
             return None
-        image = Image.open(open(image_path, 'rb'))
+
+        try:
+            image = Image.open(open(image_path, 'rb'))
+
+
+        except UnidentifiedImageError:
+            return None
+        
         image = image.convert('RGB')  # 将所有图片转换成3通道
         x, y = image.size
         if x > y:
@@ -135,9 +168,9 @@ class User:
             ids_with_image = [file_name[:-4] for file_name in file_names if file_name != 'timeline.json' and file_name[-4:] == '.txt']
         with open(os.path.join(user_path, 'timeline.txt'),encoding='gbk',errors = 'ignore') as f:
             for line in f.readlines():
-                j = json.loads(line, encoding='utf-8')
+                j = json.loads(line)
                 tweet_id = j['id_str']
-                text = j['text']
+                text = j['full_text']
                 if 'diagnosed' in text:
                     continue
                 if self.need_image:
@@ -146,7 +179,10 @@ class User:
                             image_feature = torch.Tensor(eval(v.read())).view(1, -1).float()
                         self.image_num += 1
                     else:
+                        #the original code is 
                         image_feature = torch.zeros(1, 7 * 7 * 512)
+                        #which is not match the pattern we extreacted feature, which is (1,1000)
+                        #image_feature = torch.zeros(1, 1000)
                 else:
                     image_feature = None
                     self.image_num += 1
@@ -199,6 +235,7 @@ class UserDataset(Dataset):
             categories = ['positive', 'negative']
         for c in categories:
             users = [os.path.join(root, c, user) for user in os.listdir(os.path.join(root, c)) if user[0] != '.']
+            user_id = os.listdir(os.path.join(root, c))
             bar = ProgressBar(max_value=len(users)).start()
             i = 0
             for user_path in users:
@@ -214,6 +251,8 @@ class UserDataset(Dataset):
                     shutil.rmtree(user_path)
                     continue
 
+                #user_data = User(user_path, load_pickle=load_pickle, build_pickle=build_pickle, need_image=self.need_image)
+
 
 
                 if len(user_data) < 2:
@@ -222,13 +261,13 @@ class UserDataset(Dataset):
                 del user_data.vocab
                 label = 1 if c == 'positive' else 0
                 # self.ds.append((user_data, label, user_path.split('/')[-1]))
-                self.ds.append((user_data, label))
+                self.ds.append((user_data, label, user_id[i-1]))
             bar.finish()
         self.word2id = {word:id for id, word in enumerate(self.vocab)}
 
     def train_dev_split(self, train_ratio):
         size = len(self.ds)
-        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)])
+        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)],generator=torch.Generator().manual_seed(42))
 
     def __len__(self):
         return len(self.ds)
@@ -356,7 +395,7 @@ class _UserDataset(Dataset):
 
     def train_dev_split(self, train_ratio):
         size = len(self.ds)
-        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)])
+        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)],generator=torch.Generator().manual_seed(42))
 
     def __len__(self):
         return len(self.ds)
@@ -387,10 +426,10 @@ if __name__ == '__main__':
     
     # build the .pkl files for projectx dataset
     # i added this line to build image feature .txt file before build .pkl file to ensure the .pkl file also containsimage feature.
-    image_feature = ImageDataset('projectx')
-    get_type_dataset(load_pickle=False, build_pickle=True, need_image=True, ds='projectx', half=False)
+    #image_feature = ImageDataset('projectx')
+    #get_type_dataset(load_pickle=False, build_pickle=True, need_image=True, ds='projectx', half=False)
 
     
     # if want to build .txt and .pkl for original dataset, change to
-    #image_feature = ImageDataset('new_ds')
-    #get_type_dataset(load_pickle=False, build_pickle=True, need_image=True, ds='new_ds', half=False)
+    image_feature = ImageDataset('new_ds')
+    get_type_dataset(load_pickle=False, build_pickle=True, need_image=True, ds='new_ds', half=False)

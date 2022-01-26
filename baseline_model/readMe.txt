@@ -6,7 +6,7 @@ usage: main.py [-h] [--type TYPE] [--update_scale UPDATE_SCALE] [--ds DS] [--hal
 
 To train the model:
 
-python main.py --type multi-agent --save_model true --half false --update_scale 0.2 --ds new_ds --save_path output_model/output.pt
+python3 main.py --type multi-agent --save_model true --half false --update_scale 0.2 --ds new_ds --save_path output_model/output.pt
 
 
 To get training dataset:
@@ -18,6 +18,7 @@ To use the model:
 1. run python dataHelper.py to build .pkl file for each user (Error might be caused due to the main function is modified to adapt projectx dataset)
 2. run python main.py --type multi-agent --save_model true --half false --update_scale 0.2 --ds new_ds --save_path output_model/output.pt
    update_scale subject to change.
+
 
 
 
