@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
-from torch.utils.data.dataset import random_split
+from torch._utils import _accumulate
+from torch.utils.data.dataset import random_split, Subset
 from torchvision import transforms
 from PIL import Image
 import os
@@ -108,7 +109,7 @@ class ImageDataset(Dataset):
 
     def train_test_split(self, train_ratio):
         size = len(self.ds)
-        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)],generator=torch.Generator().manual_seed(42))
+        return my_random_split(self, [int(size * train_ratio), size - int(size * train_ratio)],generator=torch.Generator().manual_seed(42))
 
     def imageHandler(self, image_path: str) -> Image:
         if os.path.getsize(image_path) == 0:
@@ -211,6 +212,35 @@ class User:
     def __len__(self):
         return len(self.tweets)
 
+class mySubset(Dataset):
+
+    def __init__(self, dataset, indices) -> None:
+        self.dataset = dataset
+        self.indices = indices
+
+    def __getitem__(self, idx):
+        if isinstance(idx, list):
+            return self.dataset[[self.indices[i] for i in idx]]
+        return self.dataset[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
+
+    def add(self, user):
+        self.indices.append(len(self.dataset))
+        self.dataset.add(user)
+
+
+def my_random_split(dataset, lengths,
+                 generator):
+
+    # Cannot verify that dataset is Sized
+    if sum(lengths) != len(dataset):
+        raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
+
+    indices = torch.randperm(sum(lengths), generator=generator).tolist()
+    return [mySubset(dataset, indices[offset - length : offset]) for offset, length in zip(_accumulate(lengths), lengths)]
+
 class UserDataset(Dataset):
     def __init__(self, root, need_split=True, train_ratio=None, load_pickle=True, build_pickle=True, need_image=True, half=False):
         self.ds = []
@@ -260,20 +290,23 @@ class UserDataset(Dataset):
                 self.vocab.update(user_data.vocab)
                 del user_data.vocab
                 label = 1 if c == 'positive' else 0
-                # self.ds.append((user_data, label, user_path.split('/')[-1]))
+                #self.ds.append((user_data, label, user_path.split('/')[-1]))
                 self.ds.append((user_data, label, user_id[i-1]))
             bar.finish()
         self.word2id = {word:id for id, word in enumerate(self.vocab)}
 
     def train_dev_split(self, train_ratio):
         size = len(self.ds)
-        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)],generator=torch.Generator().manual_seed(42))
+        return my_random_split(self, [int(size * train_ratio), size - int(size * train_ratio)],generator=torch.Generator().manual_seed(42))
 
     def __len__(self):
         return len(self.ds)
 
     def __getitem__(self, item):
         return self.ds[item]
+
+    def add(self, user):
+        self.ds.append(user)
 
 def get_type_dataset(load_pickle, build_pickle, need_image, ds, half):
     if ds == 'new_ds':
@@ -395,7 +428,7 @@ class _UserDataset(Dataset):
 
     def train_dev_split(self, train_ratio):
         size = len(self.ds)
-        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)],generator=torch.Generator().manual_seed(42))
+        return random_split(self, [int(size * train_ratio), size - int(size * train_ratio)])
 
     def __len__(self):
         return len(self.ds)

@@ -515,8 +515,12 @@ class MultiAgentClassifier():
             opposed_image_a = torch.Tensor(opposed_image_a).to(device)
             if update_buffer:
                 self.buffer.append(text_s1, image_s1, text_a1, image_a1, r, text_s2, image_s2, opposed_text_a, opposed_image_a)
+
+
         classification_loss = self.classifierLossFunction(output, ground_truth)
         prediction = torch.max(output, 1, keepdim=False)[1].item()
+        prob = F.softmax(output, dim=-1)[0, label].item()
+
         if train_classifier:
             self.textEncoderOptimizer.zero_grad()
             self.imageEncoderOptimizer.zero_grad()
@@ -533,7 +537,7 @@ class MultiAgentClassifier():
         #     pickle.dump(selected_pair, f)
         # with open(f'new_ds/unselected_pair/{root}/{index}.pkl', 'wb') as f:
         #     pickle.dump(unselected_pair, f)
-        return classification_loss.item(), prediction
+        return classification_loss.item(), prediction, prob
 
     def optimize_AC(self):
         # update critic
@@ -654,7 +658,7 @@ class MultiAgentClassifier():
         return classifier_loss.item(), prediction
 
     def joint_train(self, user, label):
-        cf_loss, prediction = self.update_buffer(user, label, need_backward=True, train_classifier=True, update_buffer=True)
+        cf_loss, prediction, prob = self.update_buffer(user, label, need_backward=True, train_classifier=True, update_buffer=True)
         self.optimize_AC()
         return  cf_loss, prediction
 

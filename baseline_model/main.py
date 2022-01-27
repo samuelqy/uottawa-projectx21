@@ -1,5 +1,6 @@
 from model import MultiAgentClassifier, TextClassifier, ImageClassifier, ConcatClassifier, DAN, CAN, MAN
 import torch
+import json
 from torch.utils.data import DataLoader
 from dataHelper import collate, get_type_dataset
 from progressbar import ProgressBar
@@ -34,14 +35,24 @@ eps = 1e-15
 def evaluate_rl():
     global ds
     ds = get_type_dataset(load_pickle=True, build_pickle=False, need_image=True, ds=ds, half=half)
-    pre_train_loader = DataLoader(ds.train_ds, batch_size=1, collate_fn=collate, shuffle=True)
-    pre_dev_loader = DataLoader(ds.dev_ds, batch_size=1, collate_fn=collate)
-    train_loader = DataLoader(ds.train_ds, batch_size=500, collate_fn=collate, shuffle=True)
-    dev_loader = DataLoader(ds.dev_ds, batch_size=1, collate_fn=collate)
 
 
     test = []
     train = []
+
+
+
+    positive_train_user = []
+    positive_count = 0
+    for user in ds.train_ds:
+        if user[1] == 1:
+            positive_train_user.append(user)
+            positive_count += 1
+
+    for i in range(len(ds.train_ds)//positive_count):
+        for user in positive_train_user:
+            ds.train_ds.add(user)
+
 
     for user in ds.train_ds:
         train.append(user[2])
@@ -57,6 +68,13 @@ def evaluate_rl():
     for user in train:
         file2.write(user + "\n")
     file2.close()
+
+
+    pre_train_loader = DataLoader(ds.train_ds, batch_size=1, collate_fn=collate, shuffle=True)
+    pre_dev_loader = DataLoader(ds.dev_ds, batch_size=1, collate_fn=collate)
+    train_loader = DataLoader(ds.train_ds, batch_size=500, collate_fn=collate, shuffle=True)
+    dev_loader = DataLoader(ds.dev_ds, batch_size=1, collate_fn=collate)
+
 
     print(len(ds.train_ds), len(ds.dev_ds))
     if os.path.exists('models/baseModelGRU.pt'):
@@ -158,7 +176,7 @@ def evaluate_rl():
         loss = 0
         correct = 0
         tp, tn, fp, fn = 0, 0, 0, 0
-        for user, label in pre_train_loader:
+        for user, label in train_loader:
             i += 1
             cf_loss, prediction = model.joint_train(user[0], label)
             loss += cf_loss
@@ -191,9 +209,12 @@ def evaluate_rl():
         loss = 0
         correct = 0
         tp, tn, fp, fn = 0, 0, 0, 0
+        validation_dict = {}
+
         with torch.no_grad():
             for user, label in dev_loader:
-                cf_loss, prediction = model.update_buffer(user[0], label,
+                id = user[2]
+                cf_loss, prediction, prob = model.update_buffer(user[0], label,
                                                           need_backward=False,
                                                           train_classifier=False,
                                                           update_buffer=False)
@@ -209,6 +230,9 @@ def evaluate_rl():
                         fp += 1
                     else:
                         fn += 1
+
+                validation_dict[id] = prob
+
         dev_accuracy = correct / len(ds.dev_ds)
         precision = tp / (tp + fp + eps)
         recall = tp / (tp + fn + eps)
@@ -219,6 +243,12 @@ def evaluate_rl():
         F1 = 2 * precision * recall / (precision + recall + eps)
         n_F1 = 2 * n_precision * n_recall / (n_precision + n_recall + eps)
         macro_F1 = (F1 + n_F1) / 2
+
+
+        with open('test_probabilities.txt', 'w') as file:
+            file.write(json.dumps(validation_dict))
+
+        
         print(
             f'Dev: Acc {dev_accuracy}\tprecision {macro_P}\trecall {macro_R}\tF1 {macro_F1}\tloss {loss}')
         if save_model:
