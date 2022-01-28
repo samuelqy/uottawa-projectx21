@@ -157,9 +157,9 @@ def evaluate_rl():
                     print('Save successfully!')
                 #for efficiency, need to comment out for higher f1 score
                 d_epochs = 0
-                d_epochs += 1
             else:
                 d_epochs += 1
+                
             if d_epochs == 4:
                 break
             if macro_F1 > 0.825:
