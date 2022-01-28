@@ -70,6 +70,7 @@ def get_friends_list(api, user):
     '''
     anchor_friends_ids = []
     try:
+
         anchor_friends_raw = api.get_friends(user_id=user.get_UserID(), count=200)
     except Exception as e:
         print(e)
@@ -157,6 +158,8 @@ def create_Set_And_Graph(api, user, G, allUsers):
                 allUsers.add(newUserID)
                 G.add_node(newUser)
                 G.add_edge(newUser, user)
+        if len(allUsers) >= 1000:
+            break #EVEN HARDER CAP 1000
     user.set_followers(lvl1_users)
     return user, G, allUsers
 
@@ -222,9 +225,9 @@ def main():
     api = authorize()
     print(type(api))
 
-    anchor_id = phrase_search(api)
+    #anchor_id = phrase_search(api)
+    anchor_id = 288390095
     print(anchor_id)
-    # anchor_id = 62704719
 
     anchorUser = tu.User(userID=anchor_id,
                          depression_status=True)
@@ -236,7 +239,7 @@ def main():
 
     temp, G, allUsers = create_Set_And_Graph(api, anchorUser, G, allUsers)
 
-    # Maximum amount of users we want to reach or max Layer depth
+    # Maximum amount of users we want to reach or max Layer depth. The cap is not hard capped. It will most likely acheive way more than 1000 users.
     expand_Graph(api, G, allUsers, 1, 1000)
 
     df = pd.DataFrame(columns=['UserID', 'TweetHistory', 'Depression_Status'])
